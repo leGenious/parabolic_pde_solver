@@ -11,7 +11,7 @@ from typing import Callable
 """
 One dimensional Parabolic solver for the numerical PDE lecture 2021
 By Daniel Walsken
-    This program solves the heat equation on the (0,1)x[0,1] domain
+    This program solves the heat equation on the (0, 1)x[0, 1] domain
     Ix[t_0, t_end]. For reasons of efficiency the methods euler_forward,
     euler_backward and crank_nicolson are implemented not as one general theta
     method but as individual methods.
@@ -25,7 +25,7 @@ class Solver_type(Enum):
     # Explicit Euler (Euler Forwards)
     EF = "Euler Forward"
 
-def get_r(n_space_points,n_time_points):
+def get_r(n_space_points, n_time_points):
     h = 1/(1+n_space_points)
     k = 1/n_time_points
     return k/(h*h)
@@ -55,9 +55,9 @@ def euler_forward(bdry0: Callable[[float], float],
         It should not contain the boundary points, since they are already given
         by bdry0 and bdry1.
     n_space_points : int
-        The number of lattice points, excluding the boundary at x=0,x=1
+        The number of lattice points, excluding the boundary at x=0, x=1
     n_time_points : int
-        The number of timesteps to be computed in the interval (0,1)
+        The number of timesteps to be computed in the interval (0, 1)
 
     Returns
     -------
@@ -74,22 +74,22 @@ def euler_forward(bdry0: Callable[[float], float],
     k = 1./(n_time_points)              # time discretization constant
     r = k/(h*h)                         # parabolic mesh ratio
     u = np.zeros( (n_space_points, n_time_points+1) )
-    u[:,0] = u_initial
+    u[:, 0] = u_initial
     # main loop through the time steps
     for i in range(1, n_time_points):
         # deal with the boundary values first
-        #u[0,i] = bdry0(k*(i-1)) - 2*u[0,i-1] + u[1,i-1]
-        #u[-1,i] = bdry1(k*(i-1)) - 2*u[-1,i-1] + u[-2,i-1]
+        #u[0, i] = bdry0(k*(i-1)) - 2*u[0, i-1] + u[1, i-1]
+        #u[-1, i] = bdry1(k*(i-1)) - 2*u[-1, i-1] + u[-2, i-1]
         logging.info(f"time step {i}")
         #for j in range(1, n_space_points-1):
-        #    u[j,i] = u[j-1,i-1] - 2*u[j,i-1] + u[j+1,i-1]
-        #u[:,i] *= r
-        #u[:,i] += u[:,i-1]
-        u[0,i] = u[0,i-1] + r*(bdry0(k*(i-1)) - 2*u[0,i-1] + u[1,i-1])
-        u[-1,i] = u[-1,i-1] + r*(bdry1(k*(i-1)) - 2*u[-1,i-1] + u[-2,i-1])
-        for j in range(1,n_space_points-1):
-            u[j,i] = u[j,i-1] + r*(u[j-1,i-1] - 2*u[j,i-1] + u[j+1,i-1])
-        if np.any(np.isnan(u[:,i])):
+        #    u[j, i] = u[j-1, i-1] - 2*u[j, i-1] + u[j+1, i-1]
+        #u[:, i] *= r
+        #u[:, i] += u[:, i-1]
+        u[0, i] = u[0, i-1] + r*(bdry0(k*(i-1)) - 2*u[0, i-1] + u[1, i-1])
+        u[-1, i] = u[-1, i-1] + r*(bdry1(k*(i-1)) - 2*u[-1, i-1] + u[-2, i-1])
+        for j in range(1, n_space_points-1):
+            u[j, i] = u[j, i-1] + r*(u[j-1, i-1] - 2*u[j, i-1] + u[j+1, i-1])
+        if np.any(np.isnan(u[:, i])):
             logging.warning(f"nan encountered in u in step {i}")
     return u
 
@@ -112,9 +112,9 @@ def euler_backward(bdry0: Callable[[float], float],
         It should not contain the boundary points, since they are already given
         by bdry0 and bdry1.
     n_space_points : int
-        The number of lattice points, excluding the boundary at x=0,x=1
+        The number of lattice points, excluding the boundary at x=0, x=1
     n_time_points : int
-        The number of timesteps to be computed in the interval (0,1)
+        The number of timesteps to be computed in the interval (0, 1)
 
     Returns
     -------
@@ -131,24 +131,24 @@ def euler_backward(bdry0: Callable[[float], float],
     k = 1./(n_time_points)              # time discretization constant
     r = k/(h*h)                         # parabolic mesh ratio
     u = np.zeros( (n_space_points+2, n_time_points+1) )
-    u[1:-1,0] = u_initial
-    u[0,0], u[n_space_points,0] = bdry0(0), bdry1(0)
+    u[1:-1, 0] = u_initial
+    u[0, 0], u[n_space_points, 0] = bdry0(0), bdry1(0)
     M = lil_matrix( (n_space_points+2, n_space_points+2) )
     for i in range(n_space_points + 2):
-        M[i,i] = 2*r+1
+        M[i, i] = 2*r+1
 
     for i in range(n_space_points + 1):
-        M[i+1 ,i] = -r
-        M[i,i+1] = -r
+        M[i+1 , i] = -r
+        M[i, i+1] = -r
     M = csc_matrix(M)
     M_inv = inv(M)
     # main loop through the time steps
     for i in range(1, n_time_points):
         # deal with the boundary values first
         logging.info(f"euler_backward:Time step {i}/{n_time_points}")
-        u[:,i] = M_inv.dot(u[:,i-1])
-        u[0,i] = bdry0(i*k)
-        u[-1,i] = bdry1(i*k)
+        u[:, i] = M_inv.dot(u[:, i-1])
+        u[0, i] = bdry0(i*k)
+        u[-1, i] = bdry1(i*k)
     return u
 
 def crank_nicolson_robin_bc(bdry_dirichlet_0: Callable[[float], float],
@@ -172,28 +172,28 @@ def crank_nicolson_robin_bc(bdry_dirichlet_0: Callable[[float], float],
     r = k/(h*h)                         # parabolic mesh ratio
     r_half = r*0.5
     u = np.zeros( (n_space_points+2, n_time_points+1) )
-    u[1:-1,0] = u_initial
-    u[0,0], u[n_space_points,0] = bdry0(0), bdry1(0)
+    u[1:-1, 0] = u_initial
+    u[0, 0], u[n_space_points, 0] = bdry0(0), bdry1(0)
     M = lil_matrix( (n_space_points+2, n_space_points+2) )
     B = lil_matrix( (n_space_points+2, n_space_points+2) )
     for i in range(n_space_points + 2):
-        M[i,i] = r+1
-        B[i,i] = 1-r
+        M[i, i] = r+1
+        B[i, i] = 1-r
 
     for i in range(n_space_points + 1):
-        M[i+1,i] = -r_half
-        M[i,i+1] = -r_half
-        B[i+1,i] = r_half
-        B[i,i+1] = r_half
+        M[i+1, i] = -r_half
+        M[i, i+1] = -r_half
+        B[i+1, i] = r_half
+        B[i, i+1] = r_half
     M = csc_matrix(M)
     M_iter = inv(M) @ B
     # main loop through the time steps
     for i in range(1, n_time_points):
         # deal with the boundary values first
         logging.info(f"euler_backward:Time step {i}/{n_time_points}")
-        u[:,i] = M_iter.dot(u[:,i-1])
-        u[0,i] = bdry0(i*k)
-        u[-1,i] = bdry1(i*k)
+        u[:, i] = M_iter.dot(u[:, i-1])
+        u[0, i] = bdry0(i*k)
+        u[-1, i] = bdry1(i*k)
     return u
 
 def crank_nicolson(bdry0: Callable[[float], float],
@@ -215,9 +215,9 @@ def crank_nicolson(bdry0: Callable[[float], float],
         It should not contain the boundary points, since they are already given
         by bdry0 and bdry1.
     n_space_points : int
-        The number of lattice points, excluding the boundary at x=0,x=1
+        The number of lattice points, excluding the boundary at x=0, x=1
     n_time_points : int
-        The number of timesteps to be computed in the interval (0,1)
+        The number of timesteps to be computed in the interval (0, 1)
 
     Returns
     -------
@@ -235,35 +235,67 @@ def crank_nicolson(bdry0: Callable[[float], float],
     r = k/(h*h)                         # parabolic mesh ratio
     r_half = r*0.5
     u = np.zeros( (n_space_points+2, n_time_points+1) )
-    u[1:-1,0] = u_initial
-    u[0,0], u[n_space_points,0] = bdry0(0), bdry1(0)
+    u[1:-1, 0] = u_initial
+    u[0, 0], u[n_space_points, 0] = bdry0(0), bdry1(0)
     M = lil_matrix( (n_space_points+2, n_space_points+2) )
     B = lil_matrix( (n_space_points+2, n_space_points+2) )
     for i in range(n_space_points + 2):
-        M[i,i] = r+1
-        B[i,i] = 1-r
+        M[i, i] = r+1
+        B[i, i] = 1-r
 
     for i in range(n_space_points + 1):
-        M[i+1,i] = -r_half
-        M[i,i+1] = -r_half
-        B[i+1,i] = r_half
-        B[i,i+1] = r_half
+        M[i+1, i] = -r_half
+        M[i, i+1] = -r_half
+        B[i+1, i] = r_half
+        B[i, i+1] = r_half
     M = csc_matrix(M)
     M_iter = inv(M) @ B
     # main loop through the time steps
     for i in range(1, n_time_points):
         # deal with the boundary values first
         logging.info(f"euler_backward:Time step {i}/{n_time_points}")
-        u[:,i] = M_iter.dot(u[:,i-1])
-        u[0,i] = bdry0(i*k)
-        u[-1,i] = bdry1(i*k)
+        u[:, i] = M_iter.dot(u[:, i-1])
+        u[0, i] = bdry0(i*k)
+        u[-1, i] = bdry1(i*k)
     return u
 
 def integral_homogeneous(u: np.array, n_space_points: int):
+    """
+    Approximates the integral of a given discretized function on the interval
+    [0,1]. This assumes homogeneous boundaries, not included in the function.
+    The approximation is handled by a simple trapezoidal rule calculation.
+
+    Parameters
+    ----------
+    u : array_like
+        The discretized function.
+    n_space_points : int
+        The number of elements in the discretization.
+
+    Returns
+    -------
+    out : float
+        The integral of the function on the interval (0,1)
+    """
     h = 1/(n_space_points+1)
     return np.sum(u)/h
 
 def init_dirac_delta_function(n_space_points: int):
+    """
+    This function (used mostly for testing) generates a (shifted by 0.5)
+    dirac delta function on the discretized interval (0,1). Thereby it
+    guarantees the integral of the function to be 1.
+
+    Parameters
+    ----------
+    n_space_points : int
+        The number of (internal) points on the interval
+
+    Returns
+    -------
+    out : np.array
+        The array containing the dirac delta function.
+    """
     u_init = np.zeros( n_space_points )
     u_init[n_space_points//2] = 1
     u_init *= integral_homogeneous(u_init, n_space_points)
@@ -271,28 +303,33 @@ def init_dirac_delta_function(n_space_points: int):
 
 
 def plot_animation(u: np.array,
-        n_space_points: int,
-        n_time_points: int,
         ymax: float = 1):
     """
-    @param u The array containing the heat distributions for all timesteps. Its
-        dimension is assumed to be (n_space_points, n_time_points)
-    @param n_space_points The number of spacial grid points excluding the boundary
-    @param n_time_points The number of time points given
+    Plots a given heat flow through the one dimensional rod from a series of
+    snapshots given by u as an animation.
+
+    Parameters
+    ----------
+    u : array_like
+        The array containing the snapshots of the heat distribution for the
+        timesteps to animate.
+    ymax : float = 1
+        The maximum Value of y throughout the heat distribution snapshots for
+        adequate scaling.
     """
     fig, ax = plt.subplots()
     ln, = plt.plot([], [], 'b.')
     frames = u.transpose()
 
     def _init():
-        ax.set_xlim(0,1)
-        ax.set_ylim(0,ymax)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, ymax)
         return ln,
 
     def _update(frame):
-        xdata = np.arange(0,1,1/(frame.size))
+        xdata = np.arange(0, 1, 1/(frame.size))
         ydata = frame
-        ln.set_data(xdata,ydata)
+        ln.set_data(xdata, ydata)
         return ln,
 
     ani = FuncAnimation(fig, _update, interval=750, frames=frames, init_func=_init,
@@ -304,10 +341,7 @@ class Parabolic_solver_1d():
     """
     A wrapper class for the one dimensional heat equation solvers.
     """
-    def __init__(self, nsp, ntp, u_initial, bdry0, bdry1, bdry_type="dirichlet",
-            solver=Solver_type.CN):
-        self.n_space_points = nsp
-        self.n_time_points = ntp
+    def set_solver(self, solver):
         if solver == Solver_type.EF:
             self.solver = euler_forward
         if solver == Solver_type.EB:
@@ -315,13 +349,24 @@ class Parabolic_solver_1d():
         if solver == Solver_type.CN:
             self.solver = crank_nicolson
 
+    def __init__(self, nsp, ntp, u_initial, bdry0, bdry1, bdry_type="dirichlet",
+            solver=Solver_type.CN):
+        self.n_space_points = nsp
+        self.n_time_points = ntp
+        self.set_solver(solver)
         self.u_initial = u_initial
-        self.bdry0 = lambda x: bdry0
-        self.bdry1 = lambda x: bdry1
+        if isinstance(bdry0, (int, float)):
+            self.bdry0 = lambda x: bdry0
+        else:
+            self.bdry0 = bdry0
+        if isinstance(bdry1, (int, float)):
+            self.bdry1 = lambda x: bdry1
+        else:
+            self.bdry1 = bdry1
         self.bdry_type = bdry_type
         self.u = None
 
-    def test(self):
+    def solve(self):
         self.u = self.solver(self.bdry0, self.bdry1, self.u_initial,
                 self.n_space_points, self.n_time_points)
         return self.u
@@ -331,7 +376,7 @@ class Parabolic_solver_1d():
             logging.warning("Solver.plot called without executing the solve first")
             return
         ymax = np.max(self.u_initial)
-        plot_animation(self.u, self.n_space_points, self.n_time_points, ymax=ymax)
+        plot_animation(self.u, ymax=ymax)
 
 def test():
     """
@@ -350,8 +395,10 @@ def test():
     u_initial = np.zeros(n_space_points)
     u_initial[n_space_points//2] = 1
     bdry = lambda x: 0
-    u = euler_forward(bdry, bdry, u_initial, n_space_points, n_time_points)
-    #plot_animation(u, n_space_points, n_time_points)
+    solver = Parabolic_solver_1d(n_space_points, n_time_points, u_initial, bdry,
+            bdry, solver=Solver_type.EF)
+    solver.solve()
+    solver.plot()
     print("testing euler_forward complete")
 
     print("testing euler_backward")
@@ -360,29 +407,31 @@ def test():
     n_space_points = 512
     n_time_points = 1000
     u_initial = init_dirac_delta_function(n_space_points)
-    ymax = u_initial.max()
-    u = euler_backward(bdry, bdry, u_initial, n_space_points, n_time_points)
-    #plot_animation(u, n_space_points+2, n_time_points, ymax=ymax)
+    solver = Parabolic_solver_1d(n_space_points, n_time_points, u_initial, bdry, bdry,
+            solver=Solver_type.EB)
+    solver.solve()
+    solver.plot()
     print("testing euler_backward complete")
 
     print("testing crank_nicolson")
     n_space_points = 128
     n_time_points = 10000
     u_initial = init_dirac_delta_function(n_space_points)
-    ymax = u_initial.max()
-    u = crank_nicolson(bdry, bdry, u_initial, n_space_points, n_time_points)
-    plot_animation(u, n_space_points+2, n_time_points, ymax=ymax)
+    solver = Parabolic_solver_1d(n_space_points, n_time_points, u_initial, bdry, bdry,
+            solver=Solver_type.CN)
+    solver.solve()
+    solver.plot()
     print("testing crank_nicolson complete")
 
 def main():
     # setup logging
     logging.basicConfig(filename="1d.log", filemode='w', level=logging.INFO)
     # test some stuff
-    #test()
-    u_init = init_dirac_delta_function(128)
-    s = Parabolic_solver_1d(128, 10000, u_init, 0, 1)
-    u = s.test()
-    s.plot()
+    test()
+    #u_init = init_dirac_delta_function(128)
+    #s = Parabolic_solver_1d(128, 10000, u_init, 0, 1)
+    #u = s.test()
+    #s.plot()
 
 if __name__ == "__main__":
     main()
