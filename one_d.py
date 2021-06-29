@@ -4,7 +4,7 @@ import logging
 from enum import Enum
 from matplotlib.animation import FuncAnimation
 from scipy.sparse import lil_matrix, csc_matrix
-from scipy.sparse.linalg import inv
+from scipy.sparse.linalg import inv, spsolve
 from typing import Callable
 
 
@@ -93,6 +93,82 @@ def euler_forward(bdry0: Callable[[float], float],
             logging.warning(f"nan encountered in u in step {i}")
     return u
 
+def euler_forward_robin_bc(gamma0: Callable[[float], float],
+        gamma1: Callable[[float], float],
+        delta0: Callable[[float], float],
+        delta1: Callable[[float], float],
+        alpha0: Callable[[float], float],
+        alpha1: Callable[[float], float],
+        u_initial: np.array,
+        n_space_points: int,
+        n_time_points: int):
+    """
+    Solve the heat equation via the forward euler scheme. The boundary
+    conditions are given as
+
+    gammax * u(x, t) + deltax * u_x(x, t) = alpha(t)
+
+    where x = 0 or 1.
+
+    Parameters
+    ----------
+    gamma0 : function(t) -> u[0]
+        A function capturing the boundary weight factor for the Dirichlet part
+        at x = 0
+    gamma1 : function(t) -> u[1]
+        A function capturing the boundary weight factor for the Dirichlet part
+        at x = 1
+    delta0 : function(t) -> u[0]
+        A function capturing the boundary weight factor for the Neumann part
+        at x = 0
+    delta1 : function(t) -> u[1]
+        A function capturing the boundary weight factor for the Neumann part
+        at x = 1
+    alpha0 : function(t) -> u[0]
+        A function returning the weighted robin boundary value at x = 0
+    alpha1 : function(t) -> u[1]
+        A function returning the weighted robin boundary value at x = 1
+    u_initial : array_like
+        The initial data from which the time evolution is to be computed.
+        It should not contain the boundary points, since they are already given
+        by bdry0 and bdry1.
+    n_space_points : int
+        The number of lattice points, excluding the boundary at x=0, x=1
+    n_time_points : int
+        The number of timesteps to be computed in the interval (0, 1)
+
+    Returns
+    -------
+    out: ndarray
+        An numpy.ndarray object containing the temporal snapshots of u as
+        columns.
+
+    See also
+    --------
+    crank_nicolson : Solve the heat equation via the crank nicolson method
+    euler_backward : Solve the heat equation via the backward euler scheme
+    """
+    h = 1./(n_space_points+1)           # space discretization constant
+    k = 1./(n_time_points)              # time discretization constant
+    r = k/(h*h)                         # parabolic mesh ratio
+    u = np.zeros( (n_space_points+2, n_time_points+1) )
+    u[1:-1, 0] = u_initial
+    u[0,:] = u[-1,:] = 1                # set ghost value for all time = 1
+    # main loop through the time steps
+    for i in range(1, n_time_points):
+        logging.info(f"time step {i}")
+        # boundary values are calcd first
+        t = k*i
+        u[0, i]  = u[0, i-1]  + r*(h/delta0(t)*(alpha0(t)-gamma0(t)*u[0,i-1]) -
+                u[0,i-1] + u[1,i-1])
+        u[-1, i]  = u[-1, i-1]  + r*(h/delta1(t)*(alpha1(t)-gamma1(t)*u[-1,i-1]) -
+                u[-1,i-1] + u[-2,i-1])
+        for j in range(1, n_space_points-1):
+            u[j, i] = u[j, i-1] + r*(u[j-1, i-1] - 2*u[j, i-1] + u[j+1, i-1])
+        if np.any(np.isnan(u[:, i])) or np.any(np.isinf(u[:,i])):
+            logging.warning(f"nan/inf encountered in u in step {i}")
+    return u[1:-1, :]                   # cut of ghost points before returning
+
 def euler_backward(bdry0: Callable[[float], float],
         bdry1: Callable[[float], float],
         u_initial: np.array,
@@ -151,50 +227,88 @@ def euler_backward(bdry0: Callable[[float], float],
         u[-1, i] = bdry1(i*k)
     return u
 
-def crank_nicolson_robin_bc(bdry_dirichlet_0: Callable[[float], float],
-        bdry_dirichlet_1: Callable[[float], float],
-        bdry_neumann_0: Callable[[float], float],
-        bdry_neumann_1: Callable[[float], float],
+def euler_backward_robin_bc(gamma0: Callable[[float], float],
+        gamma1: Callable[[float], float],
+        delta0: Callable[[float], float],
+        delta1: Callable[[float], float],
+        alpha0: Callable[[float], float],
+        alpha1: Callable[[float], float],
         u_initial: np.array,
         n_space_points: int,
         n_time_points: int):
     """
-    @param bdry0 A function that returns the boundary value at x=0
-    @param bdry1 A function that returns the boundary value at x=1
-    @param u_initial The (assumed to be consistent with bdry0 and bdry1) initial
-        value of u. Those do not include the boundary points, since they are given by
-        bdry0 and bdry1
-    @param n_space_points the number of space points between x=0 and x=1
-    @param n_time_points the number of time points on the interval including t=1
+    Solve the heat equation via the backward euler scheme
+
+    Parameters
+    ----------
+    gamma0 : function(t) -> u[0]
+        A function capturing the boundary weight factor for the Dirichlet part
+        at x = 0
+    gamma1 : function(t) -> u[1]
+        A function capturing the boundary weight factor for the Dirichlet part
+        at x = 1
+    delta0 : function(t) -> u[0]
+        A function capturing the boundary weight factor for the Neumann part
+        at x = 0
+    delta1 : function(t) -> u[1]
+        A function capturing the boundary weight factor for the Neumann part
+        at x = 1
+    alpha0 : function(t) -> u[0]
+        A function returning the weighted robin boundary value at x = 0
+    alpha1 : function(t) -> u[1]
+        A function returning the weighted robin boundary value at x = 1
+    u_initial : array_like
+        The initial data from which the time evolution is to be computed.
+        It should not contain the boundary points, since they are already given
+        by bdry0 and bdry1.
+    n_space_points : int
+        The number of lattice points, excluding the boundary at x=0, x=1
+    n_time_points : int
+        The number of timesteps to be computed in the interval (0, 1)
+
+    Returns
+    -------
+    out: ndarray
+        An numpy.ndarray object containing the temporal snapshots of u as
+        columns.
+
+    See also
+    --------
+    crank_nicolson : Solve the heat equation via the crank nicolson method
+    euler_forward : Solve the heat equation via the forward euler scheme
     """
     h = 1./(n_space_points+1)           # space discretization constant
     k = 1./(n_time_points)              # time discretization constant
     r = k/(h*h)                         # parabolic mesh ratio
-    r_half = r*0.5
     u = np.zeros( (n_space_points+2, n_time_points+1) )
     u[1:-1, 0] = u_initial
-    u[0, 0], u[n_space_points, 0] = bdry0(0), bdry1(0)
+    u[0,:] = u[-1,:] = 1
     M = lil_matrix( (n_space_points+2, n_space_points+2) )
-    B = lil_matrix( (n_space_points+2, n_space_points+2) )
-    for i in range(n_space_points + 2):
-        M[i, i] = r+1
-        B[i, i] = 1-r
+    M[0,0] = M[-1,-1] = 1e6             # big number to force the ghost points
+                                        # to be semi-constant
+    M[0,1] = M[1,0] = -r*h/delta0(0)*alpha0(0)
+    M[-1,-2] = M[-2,-1] = -r*h/delta1(0)*alpha1(0)
+    M[1,1] = 1 - r*h*gamma0(0)/delta0(0) + r
+    M[-2,-2] = 1 - r*h*gamma1(0)/delta1(0) + r
+    for i in range(1, n_space_points + 1):
+        M[i, i] = 2*r+1
 
-    for i in range(n_space_points + 1):
-        M[i+1, i] = -r_half
-        M[i, i+1] = -r_half
-        B[i+1, i] = r_half
-        B[i, i+1] = r_half
+    for i in range(1, n_space_points + 1):
+        M[i+1 , i] = -r
+        M[i, i+1] = -r
     M = csc_matrix(M)
-    M_iter = inv(M) @ B
     # main loop through the time steps
     for i in range(1, n_time_points):
+        # update boundary to match current timestep
+        t = i*k
+        M[0,1] = M[1,0] = -r*h/delta0(t)*alpha0(t)
+        M[-1,-2] = M[-2,-1] = -r*h/delta1(t)*alpha1(t)
+        M[1,1] = 1 - r*h*gamma0(t)/delta0(t) + r
+        M[-2,-2] = 1 - r*h*gamma1(t)/delta1(t) + r
         # deal with the boundary values first
         logging.info(f"euler_backward:Time step {i}/{n_time_points}")
-        u[:, i] = M_iter.dot(u[:, i-1])
-        u[0, i] = bdry0(i*k)
-        u[-1, i] = bdry1(i*k)
-    return u
+        u[:, i] = spsolve(M, u[:,i-1])
+    return u[1:-1, :]
 
 def crank_nicolson(bdry0: Callable[[float], float],
         bdry1: Callable[[float], float],
@@ -337,38 +451,82 @@ def plot_animation(u: np.array,
     #ani.save("animation.mp4")
     plt.show()
 
+class Boundary_type(Enum):
+    DIRICHLET   = 0
+    ROBIN       = 1
+
 class Parabolic_solver_1d():
     """
     A wrapper class for the one dimensional heat equation solvers.
+    Essentially I implemented this because it was becoming to tedious to
+    construct test cases and have these calls over multiple lines to the solver
+    functions.
     """
     def set_solver(self, solver):
-        if solver == Solver_type.EF:
-            self.solver = euler_forward
-        if solver == Solver_type.EB:
-            self.solver = euler_backward
-        if solver == Solver_type.CN:
-            self.solver = crank_nicolson
+        if self.bdry_type == Boundary_type.DIRICHLET:
+            if solver == Solver_type.EF:
+                self.solver = euler_forward
+            if solver == Solver_type.EB:
+                self.solver = euler_backward
+            if solver == Solver_type.CN:
+                self.solver = crank_nicolson
+        elif self.bdry_type == Boundary_type.ROBIN:
+            if solver == Solver_type.EF:
+                self.solver = euler_forward_robin_bc
+            if solver == Solver_type.EB:
+                self.solver = euler_backward_robin_bc
+            if solver == Solver_type.CN:
+                self.solver = crank_nicolson_robin_bc
 
-    def __init__(self, nsp, ntp, u_initial, bdry0, bdry1, bdry_type="dirichlet",
+    def __init__(self, nsp, ntp, u_initial, bdry0=0, bdry1=0, gamma0=0,
+            gamma1=0,
+            delta0=0, delta1=0, alpha0=0, alpha1=0,
+            bdry_type=Boundary_type.DIRICHLET,
             solver=Solver_type.CN):
         self.n_space_points = nsp
         self.n_time_points = ntp
+        self.bdry_type = bdry_type
         self.set_solver(solver)
         self.u_initial = u_initial
-        if isinstance(bdry0, (int, float)):
-            self.bdry0 = lambda x: bdry0
-        else:
-            self.bdry0 = bdry0
-        if isinstance(bdry1, (int, float)):
-            self.bdry1 = lambda x: bdry1
-        else:
-            self.bdry1 = bdry1
-        self.bdry_type = bdry_type
+        if bdry_type == Boundary_type.DIRICHLET:
+            if isinstance(bdry0, (int, float)):
+                self.bdry0 = lambda x: bdry0
+            else:
+                self.bdry0 = bdry0
+            if isinstance(bdry1, (int, float)):
+                self.bdry1 = lambda x: bdry1
+            else:
+                self.bdry1 = bdry1
+        elif bdry_type == Boundary_type.ROBIN:
+            if isinstance(gamma0, (int, float)):
+                self.gamma0 = lambda x: gamma0
+            else: self.gamma0 = gamma0
+            if isinstance(gamma1, (int, float)):
+                self.gamma1 = lambda x: gamma1
+            else: self.gamma1 = gamma1
+            if isinstance(delta0, (int, float)):
+                self.delta0 = lambda x: delta0
+            else: self.delta0 = delta0
+            if isinstance(delta1, (int, float)):
+                self.delta1 = lambda x: delta1
+            else: self.delta1 = delta1
+            if isinstance(alpha0, (int, float)):
+                self.alpha0 = lambda x: alpha0
+            else: self.alpha0 = alpha0
+            if isinstance(alpha1, (int, float)):
+                self.alpha1 = lambda x: alpha1
+            else: self.alpha1 = alpha1
+
         self.u = None
 
     def solve(self):
-        self.u = self.solver(self.bdry0, self.bdry1, self.u_initial,
-                self.n_space_points, self.n_time_points)
+        if self.bdry_type == Boundary_type.DIRICHLET:
+            self.u = self.solver(self.bdry0, self.bdry1, self.u_initial,
+                    self.n_space_points, self.n_time_points)
+        elif self.bdry_type == Boundary_type.ROBIN:
+            self.u = self.solver(self.gamma0, self.gamma1, self.delta0,
+                    self.delta1, self.alpha0, self.alpha1, self.u_initial,
+                    self.n_space_points, self.n_time_points)
         return self.u
 
     def plot(self):
@@ -422,6 +580,35 @@ def test():
     solver.solve()
     solver.plot()
     print("testing crank_nicolson complete")
+
+    print("testing euler forward for robin bcs")
+    n_space_points = 64
+    n_time_points = 10000
+    u_initial = init_dirac_delta_function(n_space_points)
+    solver = Parabolic_solver_1d(n_space_points,n_time_points,u_initial,None,None,.5,.5,.5,.5,0,0,Boundary_type.ROBIN,
+            solver=Solver_type.EF)
+    solver.solve()
+    solver.plot()
+    print("testing euler forward for robin bcs complete")
+
+    print("testing euler_backward for robin bcs")
+    # next test euler_backward. here the parabolic mesh ratio should not affect
+    # the stability of the method
+    n_space_points = 512
+    n_time_points = 1000
+    u_initial = init_dirac_delta_function(n_space_points)
+    solver = Parabolic_solver_1d(n_space_points,
+            n_time_points,
+            u_initial,
+            None,None,
+            .5,.5,
+            .5,.5,
+            0,0,
+            Boundary_type.ROBIN,
+            solver=Solver_type.EB)
+    solver.solve()
+    solver.plot()
+    print("testing euler_backward for robin bcs complete")
 
 def main():
     # setup logging
