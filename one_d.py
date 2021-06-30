@@ -293,7 +293,7 @@ def euler_backward_robin_bc(gamma0: Callable[[float], float],
     for i in range(1, n_space_points + 1):
         M[i, i] = 2*r+1
 
-    for i in range(1, n_space_points + 1):
+    for i in range(1, n_space_points):
         M[i+1 , i] = -r
         M[i, i+1] = -r
     M = csc_matrix(M)
@@ -371,6 +371,95 @@ def crank_nicolson(bdry0: Callable[[float], float],
         u[:, i] = M_iter.dot(u[:, i-1])
         u[0, i] = bdry0(i*k)
         u[-1, i] = bdry1(i*k)
+    return u
+
+def crank_nicolson_robin_bc(gamma0: Callable[[float], float],
+        gamma1: Callable[[float], float],
+        delta0: Callable[[float], float],
+        delta1: Callable[[float], float],
+        alpha0: Callable[[float], float],
+        alpha1: Callable[[float], float],
+        u_initial: np.array,
+        n_space_points: int,
+        n_time_points: int):
+    """
+    Solve the heat equation via crank_nicolson (trapezoidal rule).
+
+    Parameters
+    ----------
+    gamma0 : function(t) -> u[0]
+        A function capturing the boundary weight factor for the Dirichlet part
+        at x = 0
+    gamma1 : function(t) -> u[1]
+        A function capturing the boundary weight factor for the Dirichlet part
+        at x = 1
+    delta0 : function(t) -> u[0]
+        A function capturing the boundary weight factor for the Neumann part
+        at x = 0
+    delta1 : function(t) -> u[1]
+        A function capturing the boundary weight factor for the Neumann part
+        at x = 1
+    alpha0 : function(t) -> u[0]
+        A function returning the weighted robin boundary value at x = 0
+    alpha1 : function(t) -> u[1]
+        A function returning the weighted robin boundary value at x = 1
+    u_initial : array_like
+        The initial data from which the time evolution is to be computed.
+        It should not contain the boundary points, since they are already given
+        by bdry0 and bdry1.
+    n_space_points : int
+        The number of lattice points, excluding the boundary at x=0, x=1
+    n_time_points : int
+        The number of timesteps to be computed in the interval (0, 1)
+
+    Returns
+    -------
+    out: ndarray
+        An numpy.ndarray object containing the temporal snapshots of u as
+        columns.
+
+    See also
+    --------
+    euler_backward : Solve the heat equation via the backward euler scheme
+    euler_forward : Solve the heat equation via the forward euler scheme
+    """
+    h = 1./(n_space_points+1)           # space discretization constant
+    k = 1./(n_time_points)              # time discretization constant
+    r = k/(h*h)                         # parabolic mesh ratio
+    r_half = r*0.5
+    u = np.zeros( (n_space_points+2, n_time_points+1) )
+    u[1:-1, 0] = u_initial
+    u[0,:] = u[-1,:] = 1
+    M = lil_matrix( (n_space_points+2, n_space_points+2) )
+    B = lil_matrix( (n_space_points+2, n_space_points+2) )
+    for i in range(1,n_space_points+1):
+        M[i, i] = r+1
+        B[i, i] = 1-r
+
+    for i in range(1,n_space_points):
+        M[i+1, i] = -r_half
+        M[i, i+1] = -r_half
+        B[i+1, i] = r_half
+        B[i, i+1] = r_half
+    M = csc_matrix(M)
+    B = csc_matrix(B)
+    # main loop through the time steps
+    for i in range(1, n_time_points):
+        # deal with the boundary values first
+        t_n = (i-1)*k
+        t_np1 = i*k
+        M[0,0] = M[-1,-1] = B[0,0] = B[-1,1] = 1e6
+        M[1,0] = M[0,1] = -r/2 * h/delta0(t_np1) * alpha0(t_np1)
+        B[1,0] = B[0,1] = r/2 * h/delta0(t_n) * alpha0(t_n)
+        M[-1,-2] = M[-2,-1] = -r/2 * h/delta1(t_np1) * alpha1(t_np1)
+        B[-1,-2] = B[-2,-1] = r/2 * h/delta1(t_n) * alpha1(t_n)
+        M[1,1] = 1+r/2 + r/2 * h*gamma0(t_np1)/delta0(t_np1)
+        M[-2,-2] = 1+r/2 + r/2 * h*gamma1(t_np1)/delta1(t_np1)
+        M[1,1] = 1-r/2 - r/2 * h*gamma0(t_n)/delta0(t_n)
+        M[-2,-2] = 1-r/2 - r/2 * h*gamma1(t_n)/delta1(t_n)
+        logging.info(f"euler_backward:Time step {i}/{n_time_points}")
+        u[:, i] = B @ u[:, i-1]
+        u[:, i] = spsolve(M, u[:, i])
     return u
 
 def integral_homogeneous(u: np.array, n_space_points: int):
@@ -609,6 +698,29 @@ def test():
     solver.solve()
     solver.plot()
     print("testing euler_backward for robin bcs complete")
+
+    print("testing crank_nicolson for robin bcs")
+    # next test euler_backward. here the parabolic mesh ratio should not affect
+    # the stability of the method, but the method tends to oscillate if we
+    # choose not enough time points, make the grid too fine (exemplified using
+    # 512 space and 2000 time points). The used example of a dirac delta
+    # function makes the oscillations very apparent, as it starts with a
+    # discontinuous function and should diffuse out continuously.
+    n_space_points = 128
+    n_time_points = 8000
+    u_initial = init_dirac_delta_function(n_space_points)
+    solver = Parabolic_solver_1d(n_space_points,
+            n_time_points,
+            u_initial,
+            None,None,
+            .5,.5,
+            .5,.5,
+            0,0,
+            Boundary_type.ROBIN,
+            solver=Solver_type.CN)
+    solver.solve()
+    solver.plot()
+    print("testing crank_nicolson for robin bcs complete")
 
 def main():
     # setup logging
