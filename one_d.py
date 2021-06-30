@@ -25,17 +25,6 @@ class Solver_type(Enum):
     # Explicit Euler (Euler Forwards)
     EF = "Euler Forward"
 
-def get_r(n_space_points, n_time_points):
-    h = 1/(1+n_space_points)
-    k = 1/n_time_points
-    return k/(h*h)
-
-def coords(index, h):
-    return index*h
-
-def index(coords, h):
-    return int(coords/h)
-
 def euler_forward(bdry0: Callable[[float], float],
         bdry1: Callable[[float], float],
         u_initial: np.array,
@@ -504,7 +493,6 @@ def init_dirac_delta_function(n_space_points: int):
     u_init *= integral_homogeneous(u_init, n_space_points)
     return u_init
 
-
 def plot_animation(u: np.array,
         ymax: float = 1):
     """
@@ -519,6 +507,10 @@ def plot_animation(u: np.array,
     ymax : float = 1
         The maximum Value of y throughout the heat distribution snapshots for
         adequate scaling.
+
+    Returns
+    -------
+    None
     """
     fig, ax = plt.subplots()
     ln, = plt.plot([], [], 'b.')
@@ -635,10 +627,6 @@ def test():
     print("testing euler_forward")
     n_space_points = 64
     n_time_points = 10000
-    r = get_r(n_space_points, n_time_points)
-    if r > 1:
-        logging.warning(f"r={r} > 1 for {n_space_points} space and "+
-                f"{n_time_points} time points")
     u_initial = np.zeros(n_space_points)
     u_initial[n_space_points//2] = 1
     bdry = lambda x: 0
