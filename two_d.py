@@ -4,8 +4,6 @@ from scipy.sparse import lil_matrix, csc_matrix
 from scipy.sparse.linalg import spsolve
 from scipy.integrate import solve_ivp
 
-# lex = x + y*nsp
-
 class MOL:
     """
     This class is a wrapper for a function with static data. In order to
@@ -124,7 +122,6 @@ class Rothe:
             self.u[:,i] = spsolve(self.M, self.u[:,i-1])
         return self.u
 
-
 def init_y0(n_space_points):
     """
     Method init_y0. This method initializes a wave packet in the center of the
@@ -174,9 +171,9 @@ def test_method_of_lines():
     """
     Simple, no parameter testing routine. The expected output is that a wave
     dissipates.
+    This stuff works, don't try it with 'RK45' or similar explicit method, it
+    won't work (since they cannot deal with the arising stiff system properly).
     """
-    # This stuff works, don't try it with 'RK45' or similar explicit method, it
-    # won't work (since they cannot deal with the arising stiff system properly).
     n_space_points = 64
     ode = MOL(n_space_points)
     plt.spy(ode.M, markersize=2)
@@ -199,7 +196,6 @@ def test_rothe_method():
     u = solver.solve(u_initial)
     for i in range(10):
         plot(n_space_points, u[:,i])
-
 
 def main():
     test_method_of_lines()
