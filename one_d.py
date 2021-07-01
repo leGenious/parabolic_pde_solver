@@ -10,11 +10,22 @@ from typing import Callable
 
 """
 One dimensional Parabolic solver for the numerical PDE lecture 2021
-By Daniel Walsken
-    This program solves the heat equation on the (0, 1)x[0, 1] domain
-    Ix[t_0, t_end]. For reasons of efficiency the methods euler_forward,
-    euler_backward and crank_nicolson are implemented not as one general theta
-    method but as individual methods.
+This program solves the heat equation on the (0, 1)x[0, 1] domain
+Ix[t_0, t_end]. For reasons of efficiency the methods euler_forward,
+euler_backward and crank_nicolson are implemented not as one general theta
+method but as individual methods.
+
+Author
+------
+Daniel Walsken
+
+Date
+----
+01.07.2021
+
+Version
+-------
+Stable i guess
 """
 
 class Solver_type(Enum):

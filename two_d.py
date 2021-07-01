@@ -4,6 +4,25 @@ from scipy.sparse import lil_matrix, csc_matrix
 from scipy.sparse.linalg import spsolve
 from scipy.integrate import solve_ivp
 
+"""
+This module contains solvers for heat equation problems in two dimensions with
+homogeneous Dirichlet boundary conditions.
+It is rather rudimentary in nature, in that it only deals with a very narrow
+band of problems.
+
+Author
+------
+Daniel Walsken
+
+Date
+----
+01.07.2021
+
+Version
+-------
+Pretty much untested apart from a few edge cases.
+"""
+
 class MOL:
     """
     This class is a wrapper for a function with static data. In order to
